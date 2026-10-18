@@ -56,5 +56,6 @@ export const adminToken = {
 export const api = {
   get: <T = any>(path: string) => request<T>("GET", path),
   admin: <T = any>(path: string) => request<T>("GET", path, undefined, adminToken.get()),
+  adminPost: <T = any>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}, adminToken.get()),
   post: <T = any>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
 };

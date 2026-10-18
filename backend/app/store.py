@@ -36,6 +36,8 @@ COLLECTIONS = [
     "rules",
     "eval_runs",
     "policies",
+    "shopify_orders",
+    "shopify_events",
 ]
 
 

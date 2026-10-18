@@ -176,11 +176,20 @@ The frontend must be served over HTTPS, because Shopify storefronts won't load a
 
 The button opens `https://<your-frontend>/embed`, which is the assistant without the demo chrome. You can preview that URL directly. To remove PerkPilot, delete the Custom Liquid section; nothing else in your theme changes.
 
+### 5. Stream live store data to the merchant dashboard
+
+The dashboard's **Shopify store** panel shows orders, paid revenue, orders awaiting fulfillment, stock, and a feed of store changes. It refreshes every 5 seconds. Shopify pushes changes by webhook to `POST /api/shopify/webhooks`, and each request must carry a valid HMAC signed with your app's client secret.
+
+1. Add `read_orders` to your app's scopes in the Dev Dashboard, release the version and approve it in your store. Products and inventory stream without it; orders need it.
+2. Set `PERKPILOT_PUBLIC_URL` in `backend/.env` to the app's public HTTPS address (your deployment, or an `ngrok http 3000` tunnel), then restart the backend.
+3. Open **Merchant console → Dashboard**, enter `PERKPILOT_ADMIN_TOKEN`, and press **Connect store**. This registers the webhooks your scopes allow, backfills the last 100 orders and resyncs the catalog.
+
+Product and inventory events trigger a catalog resync inside the API process; bursts collapse into one sync. Order events store a summary (number, totals, statuses, line items) and never store customer names, emails or addresses. If the tunnel URL changes, update `PERKPILOT_PUBLIC_URL` and press **Sync now**; stale webhook URLs are replaced.
+
 ### What the Shopify pilot does not do yet
 
 - Shoppers in the embed use the demo shopper identity; Shopify customer accounts aren't linked yet.
-- The merchant console's returns and learning features run on PerkPilot's own claims. Shopify orders and returns aren't imported yet.
-- Inventory and prices are only as fresh as the last sync; there are no webhooks yet.
+- The merchant console's returns and learning features run on PerkPilot's own claims. Shopify orders show on the dashboard, but Shopify returns don't feed claims or learning yet.
 - Single store, USD only.
 - Variants are matched on Size and Color; a third option (e.g. Material) isn't matched, and the first variant wins.
 

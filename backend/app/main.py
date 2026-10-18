@@ -5,12 +5,15 @@ from __future__ import annotations
 import os
 import secrets
 
-from fastapi import Depends, FastAPI, Header, Query, Request
+import json
+
+import httpx
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import demo, learning, metrics, resolution, shopping
+from . import demo, learning, metrics, resolution, shopping, shopify_stream
 from .ai import ai_status
 from .core import MERCHANT_ID, DomainError, live_mode, load_env, now
 from .evaluation import run_evaluation
@@ -164,6 +167,40 @@ def create_app(store: BaseStore | None = None) -> FastAPI:
 
     def _claim_summaries(s: BaseStore, purchase_id: str) -> list[dict]:
         return [{k: c[k] for k in ("claim_id", "status", "classification")} for c in s.find("claims", {"purchase_id": purchase_id})]
+
+    # ------------------------------------------------------------ Shopify live data
+
+    @app.post("/api/shopify/webhooks")
+    async def shopify_webhook(request: Request, background: BackgroundTasks):
+        # Public endpoint: the HMAC over the raw body, signed with the app's client secret, is the authentication.
+        raw = await request.body()
+        h = request.headers
+        if not shopify_stream.verify_webhook(raw, h.get("x-shopify-hmac-sha256", ""), os.environ.get("SHOPIFY_CLIENT_SECRET", "")):
+            raise DomainError("Webhook signature is invalid.", 401, "invalid_signature")
+        if h.get("x-shopify-shop-domain") and h["x-shopify-shop-domain"] != shopify_stream.shop_domain():
+            raise DomainError("Webhook is for a different shop.", 403, "wrong_shop")
+        result = shopify_stream.handle_webhook(S(), h.get("x-shopify-topic", ""), h.get("x-shopify-webhook-id", ""), json.loads(raw or b"{}"))
+        if result == "catalog":
+            background.add_task(shopify_stream.resync_catalog, S())  # ack within Shopify's 5 s; sync afterwards
+        return {"ok": True, "result": result}
+
+    @app.get("/api/admin/shopify", dependencies=[Depends(require_admin)])
+    def shopify_overview():
+        return shopify_stream.overview(S())
+
+    @app.post("/api/admin/shopify/connect", dependencies=[Depends(require_admin)])
+    def shopify_connect():
+        # The callback comes only from server config, so a caller can't point the store's webhooks elsewhere.
+        public = os.environ.get("PERKPILOT_PUBLIC_URL", "").strip()
+        if not shopify_stream.configured():
+            raise DomainError("Shopify isn't configured. Set SHOPIFY_SHOP and the app credentials in backend/.env.", 422, "shopify_not_configured")
+        if not public.startswith("https://"):
+            raise DomainError("Set PERKPILOT_PUBLIC_URL in backend/.env to the public HTTPS address of this app (e.g. your ngrok URL).",
+                              422, "public_url_missing")
+        try:
+            return shopify_stream.connect(S(), public)
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise DomainError(f"Shopify request failed: {exc}", 502, "shopify_error")
 
     # ------------------------------------------------------------ admin audit (bearer token in every mode)
 

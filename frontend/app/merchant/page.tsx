@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import BarList from "@/components/BarList";
+import ShopifyPanel from "@/components/ShopifyPanel";
 import { useDemo } from "@/components/DemoProvider";
 import { Badge, Button, Card, ErrorBox, Eyebrow, Loading, SimLabel } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -75,6 +76,9 @@ export default function MerchantDashboard() {
       </div>
       <ErrorBox error={error} />
 
+      <ShopifyPanel />
+
+      <h2 className="-mb-4 font-semibold">PerkPilot assistant activity</h2>
       {proposed.length > 0 && (
         <Link href="/merchant/rules" className="flex animate-rise flex-wrap items-center justify-between gap-3 rounded-2xl border border-warn/30 bg-warn-soft px-5 py-4">
           <div>
@@ -202,7 +206,7 @@ export default function MerchantDashboard() {
             <p className="mt-3 text-sm text-ink-mute">No run yet. Evaluations run in an isolated sandbox and never change live demo data.</p>
           )}
         </Card>
-        <Card className="p-5">
+        {aerox.status === "active" && <Card className="p-5">
           <p className="text-sm font-semibold">Scenario tools</p>
           <p className="mt-1 text-xs text-ink-mute">
             Change the AeroRunner X price to show that a shopper's earlier approval stops applying (it must be re-verified and re-approved).
@@ -229,7 +233,7 @@ export default function MerchantDashboard() {
             )}
           </div>
           <p className="mt-4 text-xs text-ink-mute">Seeded history: {d.seeded_history.orders} orders, {d.seeded_history.claims} claims. {d.seeded_history.note}</p>
-        </Card>
+        </Card>}
       </div>
     </div>
   );
